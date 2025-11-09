@@ -1,5 +1,11 @@
 # Beads: A Memory Upgrade for AI Coding Agents
 
+> **TL;DR:** Git-backed issue tracker that gives AI agents (like Cursor, Claude) persistent memory across sessions. Tracks dependencies, auto-discovers work, prevents context loss. Works with Linear/Jira as complementary tool for implementation details.
+
+**Quick Links:**
+- 📦 [Installation](#installation--quick-start) | 🎯 [Cursor Integration](#can-beads-be-used-in-cursor) | 🤝 [Linear/Jira Comparison](#does-beads-replace-human-issue-trackers-like-linear)
+- 💡 [Example Use Case](#real-world-example-use-case) | 🔧 [How It Works](#core-architecture) | 📖 [Full Docs](https://github.com/steveyegge/beads)
+
 ## Overview
 
 **Beads** (GitHub: [steveyegge/beads](https://github.com/steveyegge/beads)) is a revolutionary graph-based issue tracking system designed specifically for AI coding agents. With over 2,500 stars, it solves one of the most critical challenges in AI-assisted development: **agent amnesia** when dealing with complex, long-horizon tasks.
@@ -24,7 +30,9 @@ Beads is a lightweight, git-backed issue tracker that gives AI agents:
 - ✅ **Collision-resistant IDs** - hash-based IDs prevent multi-agent conflicts
 - ✅ **Full audit trail** - every change is logged
 
-> **💡 Does this replace Linear/Jira?** No! Beads is complementary. Humans use Linear/Jira for product planning, agents use Beads for implementation tracking. They work together via `external_ref` linking. [See detailed comparison ↓](#does-beads-replace-human-issue-trackers-like-linear)
+> **💡 Quick FAQs:**
+> - **Does this replace Linear/Jira?** No! Beads is complementary. [See comparison ↓](#does-beads-replace-human-issue-trackers-like-linear)
+> - **Works with Cursor?** Yes! CLI, MCP server, and .cursorrules support. [See guide ↓](#can-beads-be-used-in-cursor)
 
 ## Core Architecture
 
@@ -274,7 +282,160 @@ bd ready --label security  # Security issues
 bd ready --assignee alice  # Alice's tasks
 ```
 
-## Installation & Quick Start
+## Can Beads Be Used in Cursor?
+
+**Yes! Beads works perfectly with Cursor.** There are multiple integration methods:
+
+### Method 1: Direct CLI Usage (Simplest)
+
+Cursor's AI can use the `bd` CLI directly via shell commands:
+
+```bash
+# Install beads
+curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash
+
+# Initialize in your project
+cd your-project
+bd init
+
+# Tell Cursor's AI to use it
+echo "USE bd (beads) for task tracking. Run 'bd ready --json' to find work." >> .cursorrules
+```
+
+Cursor's AI can then execute commands like:
+- `bd ready --json` - Find ready work
+- `bd create "Fix bug" -t bug -p 1 --json` - Create issues
+- `bd update bd-a1b2 --status in_progress --json` - Update status
+- `bd show bd-a1b2 --json` - View issue details
+
+### Method 2: MCP Server Integration (Most Powerful)
+
+Beads provides a **Model Context Protocol (MCP)** server that gives Cursor's AI native tool access:
+
+**Install MCP Server:**
+```bash
+# Using uv (recommended)
+uv tool install beads-mcp
+
+# Or using pip
+pip install beads-mcp
+```
+
+**Configure for Cursor:**
+
+Add to your Cursor settings or workspace MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "beads": {
+      "command": "beads-mcp"
+    }
+  }
+}
+```
+
+**What You Get:**
+- Native MCP tools: `init`, `create`, `list`, `ready`, `show`, `update`, `close`, `dep`, `blocked`, `stats`
+- Automatic workspace detection (works across multiple projects)
+- Per-project daemon routing (each project isolated)
+- No manual JSON parsing - structured tool responses
+
+### Method 3: Rules File Integration (Best for Consistency)
+
+Create a `.cursorrules` file in your project root:
+
+```markdown
+# Beads Issue Tracker
+
+USE the bd (beads) CLI for ALL task tracking and project memory.
+
+## Essential Commands
+
+1. Find work: `bd ready --json`
+2. Create issue: `bd create "title" -t type -p priority --json`
+3. Update status: `bd update <id> --status <status> --json`
+4. Show details: `bd show <id> --json`
+5. Close issue: `bd close <id> --reason "completed" --json`
+
+## Workflow
+
+1. At session start: Run `bd ready --json` to see what's ready
+2. During work: Create issues for discovered bugs/TODOs
+3. Link discoveries: `bd dep add <new-id> <parent-id> --type discovered-from`
+4. Before finishing: Update/close issues and sync to git
+
+## Types
+- bug, feature, task, epic, chore
+
+## Priorities
+- 0 (critical), 1 (high), 2 (medium), 3 (low), 4 (backlog)
+
+## Important
+- Always use --json flag for programmatic parsing
+- File issues as you discover them (don't wait)
+- Track dependencies to prevent blocked work
+```
+
+### Multi-Project Support
+
+Beads automatically detects which project you're working on:
+
+```bash
+# Working on Project A
+cd ~/projects/webapp
+bd ready --json  # Uses webapp's .beads/
+
+# Working on Project B  
+cd ~/projects/api
+bd ready --json  # Uses api's .beads/
+
+# Each project completely isolated
+```
+
+With MCP server, one configuration works for all projects via automatic daemon routing!
+
+### Example Cursor Workflow
+
+**Session Start:**
+```bash
+# Cursor AI runs this automatically
+bd ready --json | jq '.[0]'
+```
+
+**During Implementation:**
+```bash
+# AI discovers a bug while coding
+bd create "Fix memory leak in cache" -t bug -p 1 --json
+
+# AI links it to current work
+bd dep add bd-f7e3 bd-a1b2 --type discovered-from
+
+# AI updates status
+bd update bd-a1b2 --status in_progress --json
+```
+
+**Session End:**
+```bash
+# AI closes completed work
+bd close bd-a1b2 --reason "Implemented and tested" --json
+
+# AI commits to git
+git add .beads/issues.jsonl
+git commit -m "Completed bd-a1b2"
+git push
+```
+
+### Why Beads + Cursor = Powerful
+
+1. **Persistent Memory** - Cursor doesn't forget across sessions
+2. **Automatic Discovery** - AI files issues as it finds problems
+3. **Dependency Tracking** - AI understands what blocks what
+4. **JSON Output** - Perfect for programmatic parsing
+5. **Git-Backed** - Syncs across machines automatically
+6. **Multi-Project** - Works seamlessly with multiple repos
+
+### Installation & Quick Start
 
 ### For Humans (One-Time Setup)
 
