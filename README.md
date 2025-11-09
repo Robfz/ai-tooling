@@ -24,6 +24,8 @@ Beads is a lightweight, git-backed issue tracker that gives AI agents:
 - ✅ **Collision-resistant IDs** - hash-based IDs prevent multi-agent conflicts
 - ✅ **Full audit trail** - every change is logged
 
+> **💡 Does this replace Linear/Jira?** No! Beads is complementary. Humans use Linear/Jira for product planning, agents use Beads for implementation tracking. They work together via `external_ref` linking. [See detailed comparison ↓](#does-beads-replace-human-issue-trackers-like-linear)
+
 ## Core Architecture
 
 ### The Magic: Git-Backed Database
@@ -395,6 +397,172 @@ bd daemon start --agent-mail
   - Protected branch support
   - Advanced features and extensions
 
+## Does Beads Replace Human Issue Trackers Like Linear?
+
+**Short answer: No. Beads is complementary, not a replacement.**
+
+### The Division of Labor
+
+**Beads = AI Agent Memory**
+- Designed FOR AI agents to use on your behalf
+- Tracks discovered work, dependencies, and implementation details
+- Git-backed, offline-first, branch-scoped
+- Lives in your codebase (`.beads/` directory)
+- Fast, lightweight CLI with JSON output for programmatic use
+
+**Linear/Jira/GitHub Issues = Human Team Coordination**
+- Designed FOR humans with rich UIs
+- Product roadmaps, sprint planning, stakeholder communication
+- Centralized service with real-time collaboration
+- Cross-project dashboards, notifications, comments, discussions
+- Integrations with Slack, email, calendars, etc.
+
+### How They Work Together
+
+```
+┌─────────────────────────────────────────────┐
+│  HUMAN SPACE (Linear/Jira)                  │
+│  • Product planning                         │
+│  • Feature requests                         │
+│  • Sprint goals                             │
+│  • Stakeholder communication                │
+└───────────────┬─────────────────────────────┘
+                │
+                │ "Build authentication system"
+                ↓
+┌─────────────────────────────────────────────┐
+│  AI AGENT SPACE (Beads)                     │
+│  • bd-a3f8 [epic] Auth system               │
+│  • bd-a3f8.1 [task] Database migration      │
+│  • bd-a3f8.2 [task] Login UI                │
+│  • bd-f7e3 [bug] SQL injection fix          │
+│  • bd-9b2c [task] Add rate limiting         │
+│  • bd-4d1a [chore] Update tests             │
+└─────────────────────────────────────────────┘
+```
+
+### Real-World Workflow
+
+**1. Human creates high-level ticket in Linear:**
+```
+LINEAR-123: Implement user authentication
+- SSO with Google
+- Password reset flow
+- Session management
+```
+
+**2. AI agent breaks it down in Beads:**
+```bash
+# Agent creates epic linked to Linear ticket
+bd create "Auth system" -t epic -p 1 --external-ref "LINEAR-123"
+# Returns: bd-a3f8
+
+# During implementation, agent discovers sub-tasks:
+bd create "Add users table migration" -p 0  # bd-a3f8.1
+bd create "Implement OAuth flow" -p 1        # bd-a3f8.2
+bd create "Fix session cookie bug" -t bug    # bd-f7e3 (discovered during work)
+bd create "Add rate limiting" -p 2           # bd-9b2c (discovered during work)
+```
+
+**3. Agent tracks dependencies:**
+```bash
+bd dep add bd-a3f8.2 bd-a3f8.1 --type blocks  # OAuth blocked by migration
+bd dep add bd-f7e3 bd-a3f8.2 --type discovered-from  # Bug found during OAuth work
+```
+
+**4. Human checks Linear for high-level status:**
+- LINEAR-123 → "In Progress"
+- Comments from agent about technical blockers
+- Links back to specific commits
+
+**5. Agent uses Beads for execution:**
+```bash
+bd ready --json  # Find next task with no blockers
+bd close bd-a3f8.1 --reason "Migration complete"
+bd update bd-a3f8.2 --status in_progress
+```
+
+### Integration Pattern
+
+Beads supports `external_ref` field for linking to human tools:
+
+```bash
+# Link to Linear
+bd create "Fix auth bug" -t bug --external-ref "LINEAR-456"
+
+# Link to Jira
+bd create "API refactor" -t task --external-ref "PROJ-789"
+
+# Link to GitHub Issues
+bd create "Memory leak" -t bug --external-ref "gh-42"
+```
+
+You can configure integration settings:
+```bash
+bd config set linear.api_key "YOUR_KEY"
+bd config set jira.url "https://company.atlassian.net"
+```
+
+### Key Differences
+
+| Feature | Beads (Agent) | Linear/Jira (Human) |
+|---------|---------------|---------------------|
+| **Primary User** | AI coding agents | Human teams |
+| **Interface** | CLI + JSON API | Rich web UI + mobile |
+| **Storage** | Git-backed JSONL | Cloud database |
+| **Scope** | Per-repository | Cross-organization |
+| **Dependencies** | 4 types (blocks, related, parent-child, discovered-from) | Basic linking |
+| **Ready Work** | Automatic detection based on blockers | Manual prioritization |
+| **Offline** | Full functionality | Limited |
+| **Discovery** | Agents auto-file issues during work | Humans manually create |
+| **Audit Trail** | Every change logged | Activity feeds |
+| **Cost** | Free, open-source | Usually paid SaaS |
+
+### When to Use What
+
+**Use Beads when:**
+- ✅ AI agent is implementing features
+- ✅ Tracking technical dependencies and sub-tasks
+- ✅ Agent discovering bugs/TODOs during work
+- ✅ Need perfect memory across agent sessions
+- ✅ Working offline or in git-heavy workflows
+
+**Use Linear/Jira when:**
+- ✅ Planning product roadmap with stakeholders
+- ✅ Sprint planning and team coordination
+- ✅ Cross-project reporting and dashboards
+- ✅ Human discussions and approvals
+- ✅ Integrating with team communication tools
+
+**Use Both when:**
+- ✅ You have AI agents doing implementation work
+- ✅ You need human oversight on product direction
+- ✅ You want agents to track technical details automatically
+- ✅ You want humans to focus on strategy, not implementation minutiae
+
+### FAQ Quote
+
+From the Beads documentation:
+
+> **Can I use bd without AI agents?**
+> 
+> Absolutely! bd is a great CLI issue tracker for humans too. The `bd ready` command is useful for anyone managing dependencies. Think of it as "Taskwarrior meets git."
+
+> **Why not just use GitHub Issues?**
+>
+> GitHub Issues excels for human teams in web UI with cross-repo dashboards and integrations. bd excels for AI agents needing offline, git-synchronized task memory with graph semantics and deterministic queries.
+
+### The Bottom Line
+
+**Beads doesn't replace Linear/Jira** — it gives your AI agents their own workspace for managing implementation details that would clutter human tools. 
+
+Think of it this way:
+- **Linear** = The project manager's whiteboard (high-level strategy)
+- **Beads** = The developer's notebook (implementation details)
+- **AI Agent** = The developer who can now remember everything in their notebook across sessions
+
+Your human team continues using their preferred tools for planning and coordination. Your AI agents use Beads to track the hundreds of micro-tasks, dependencies, and discovered issues that emerge during actual coding work.
+
 ## Conclusion
 
 Beads transforms AI coding agents from forgetful assistants into organized project managers with perfect memory. By using a git-backed issue tracker designed specifically for agents, it enables:
@@ -404,7 +572,9 @@ Beads transforms AI coding agents from forgetful assistants into organized proje
 - **Multi-agent coordination** without conflicts
 - **Audit trails** for complex multi-session operations
 
-If you're using AI agents for coding, Beads is the memory upgrade that makes them exponentially more effective at handling complex, real-world software projects.
+If you're using AI agents for coding, Beads is the memory upgrade that makes them exponentially more effective at handling complex, real-world software projects — while your human team continues using their favorite tools like Linear, Jira, or GitHub Issues for product planning and coordination.
+
+**Beads = Agent Memory | Linear/Jira = Human Coordination | Together = Powerful Workflow**
 
 ---
 
